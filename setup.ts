@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import readline from "readline";
 import consola from "consola";
+import { existsSync } from "fs";
 
 interface Input {
   question: string;
@@ -43,19 +44,28 @@ async function readInput(
 async function main() {
   const cwd = process.cwd();
   const basename = path.basename(cwd);
-  consola.start(`Setting up ${basename}...`);
+  const projectName = await readInput({
+    question: "What is the name of your project?",
+    example: basename,
+    orDefault: basename
+  });
+
+  consola.start(`Setting up ${projectName}...`);
 
   await editJson("package.json", async (json) => {
     const beforeName = json.name;
-    const beforeIdeaFile = ".idea/" + beforeName + ".iml";
-    const afterIdeaFile = ".idea/" + basename + ".iml";
-    if (beforeName !== basename) {
-      consola.start(`Renaming ${beforeName} to ${basename}...`);
+    const ideaDir = ".idea";
+    const sanitizedProjectName = projectName.split('/').pop().replace(/[^a-z0-9\-]/gi, "");
+    const imlExt = ".iml";
+    const beforeIdeaFile = path.join(ideaDir, beforeName + imlExt);
+    const afterIdeaFile = path.join(ideaDir, sanitizedProjectName + imlExt);
+    if (beforeName !== projectName && existsSync(beforeIdeaFile)) {
+      consola.start(`Renaming ${beforeName} to ${projectName}...`);
       await fs.copyFile(beforeIdeaFile, afterIdeaFile);
       await fs.rm(beforeIdeaFile);
-      consola.success(`Renamed ${beforeName} to ${basename}`);
+      consola.success(`Renamed ${beforeName} to ${projectName}`);
     }
-    json.name = basename;
+    json.name = projectName;
     json.author ||= process.env.USER;
     if ("prettier" in json.devDependencies) {
       await editJson(
